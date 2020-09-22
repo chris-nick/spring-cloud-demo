@@ -1,0 +1,60 @@
+server:
+  port: 9990
+spring:
+  profiles:
+    active: dev
+  application:
+    name: gateway-service
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          # 服务名小写
+          lower-case-service-id: true
+      routes:
+        - id: consumer-service
+          # lb代表从注册中心获取服务，且已负载均衡方式转发
+          uri: lb://consumer-service
+          predicates:
+            - Path=/consumer/**
+          # 加上StripPrefix=1，否则转发到后端服务时会带上consumer前缀
+          filters:
+            # - TokenAuthenticationFilter
+            - StripPrefix=1
+            # 熔断降级配置
+            - name: Hystrix
+              args:
+                name: default
+                fallbackUri: 'forward:/defaultfallback'
+
+# 注册中心
+eureka:
+  instance:
+    prefer-ip-address: true
+  client:
+    service-url:
+      defaultZone: http://admin:admin@localhost:10025/eureka/
+
+
+# 暴露监控端点
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+  endpoint:
+    health:
+      show-details: always
+
+
+# hystrix 信号量隔离，3秒后自动超时
+hystrix:
+  command:
+    default:
+      execution:
+        isolation:
+          strategy: SEMAPHORE
+          thread:
+            timeoutInMilliseconds: 3000
+  shareSecurityContext: true
